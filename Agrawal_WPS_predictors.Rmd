@@ -1,0 +1,452 @@
+---
+title: "Pre-K Predictors of Kindergarten Math Word Problem Solving"
+author: "Vishakha Agrawal"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: yes
+    number_sections: yes
+---
+
+
+
+# Introduction
+Math knowledge at school entry is one of the strongest predictors of academic achievement (Classens et al., 2009) and low math knowledge at kindergarten entry and exit is associated with high rates of math disability by 5th grade (Morgan et al., 2009). Most studies of risk for math disabilities in very young children (e.g., pre-K and kindergarten) investigate number sense or numbers and operations as outcomes. However, beginning in the elementary grades, math word problems are prevalent on high stakes math testing (Driver & Powell, 2017). Given the importance of math word problem solving, little is known about early math word problem solving and what predicts it; this project examines preschool predictors for word problem solving in kindergarten.
+
+The data used in this project is from a large-scale randomized control trial that followed over 500 students with very low math performance from the beginning of pre-K into kindergarten (original study described in Barnes et al., 2016). Measures of early math skills (e.g., genenal math skills, numeracy), language skills (phonological awareness and word reading) and cognition (e.g., attention, inhibition, visual spatial working memory) were collected at the beginning of pre-K, end of pre-K and end of kindergarten. Additionally, a measure of word problem solving was also collected for 493 students in kindergarten.
+
+## Research Question
+Given measures of math, language and cognition for pre-K students entering pre-K with very low math scores, how well can we predict whether the student will have low or high word problem solving scores in kindergarten?
+
+# Variables of Interest
+Three "types" of measures are available in the dataset - math-related, language-related and cognitive variables. Variables are named to reflect the construct/measure and time point (preK or K). More information on the measures can be found in Barnes et al. (2016; 2020).
+
+## Math-related predictor
+Test of Early Math Ability, 3rd edition (TEMA) is a standardized assessment of early math skills. This project uses the scaled TEMA score from the beginning of pre-K (math_preK).
+
+## Language-related predictors
+Phonological awareness was assessed in English or Spanish using the TOPEL or SPELA, respectively. Scaled scores for each student were transformed into z-scores for the entire sample at the beginning of pre-K (PA_preK).
+
+Word reading was assessed in English or Spanish using the Letter Word ID subtest of the Woodcock Johnson III or the Identificación de letras y palabras from
+the Batería III Woodcock-Muñoz, respectively. Scaled scores for each student are used in this project (LWID_preK).
+
+## Cognitive predictors
+The dataset includes measures of visual-spatial working memory (VSWM_preK), nonverbal IQ (iq_preK), Approximate number sense (ANS) acuity and attention all collected at the beginning of pre-K. 
+
+VSWM was assessed using a task similar to a standard Corsi-Blocks task. VSWM_preK is a raw score, ranging from 0-8.
+
+Nonverbal IQ was tested using the matrices subtest of the Kaufman Brief Intelligence Test, 2nd edition (KBIT-2). The KBIT-2 is a standardized assessment and iq_preK are scaled scores.
+
+ANS acuity refers to an individual's ability to perceive and discriminate differences in quantity without counting. Research has shown that deficits in ANS acuity can help distinguish between students at-risk for math disability and those not at risk. Here, ANS acuity was measured using Panamath, a computerized task, with congruent (ANS_cong_preK) and incongruent (ANS_inco_preK) trials. Accuracy (proportion correct) on each type of trial is used for analyses. 
+
+Attention is often used as an umbrella term for sustained attention, inhibitory control, and impulsivity. Tasks that measure attention usually tap into one of these constructs and can be either direct assessments (e.g., flanker task) or questionnaires filled out by teachers or caregivers (e.g., Child Behavior Questionnaire). The dataset contains three assessments of attention - Computerized flanker task (Child-ANT), computerized continuous performance task (CPT) and the teacher version of the Child Behavior Questionnaire (CBQ). 
+
+Accuracy scores on congruent and incongruent trials of a computerized flanker task (Child-ANT), respectively, are measures of sustained attention and inhibition. Theoretically, ChANT_att_wv1 and ChANT_inhib_wv1 can range from 0-1.
+
+Two types of errors are possible in a CPT - omission and comission errors. Omission errors occur when a participant misses a trial with a target stimulus, which indicates a loss in sustained attention (CPT_att_preK). Comission errors occur when a participant responds to a trial without a target stimulus, indicating a deficit in impulse or inhibitory control (CPT_inhib_preK). As expected, CPT scores are inversely proportional to a participant's sustained attention and inhibitory control skills. For this project, a raw score of number of omission and comission errors is used.
+
+The Child Behavior Questionnaire (CBQ) has subscales for sustained attention (CBQ_att_preK), inhibitory control (CBQ_inhib_preK) and impulsivity (CBQ_impul_preK). Higher scores indicate better sustained attention and inhibitory control and greater impulsivity.
+
+## Outcome of interest
+The primary outcome of interest is math word problem solving (WPS). This was collected as an add-on subtest to the Child Math Assessment and is only available for the kindergarten time point. Students were asked 3 addition and 3 subtraction word problems and scored 1 if they answered correctly and 0 if incorrect, for a maximum score of 6. In this dataset, scores range from 0-6 but are not normally distributed. Consequently, logistic regression is used instead of linear regression.
+
+# Analysis plan
+First, a principal component analysis (PCA) will be conducted for dimensionality reduction. Then, a logistic regression will be used to answer the primary research question.
+
+# Principal Component Analysis
+
+## Call-in data and clean-up tibble
+
+```{r}
+library(tidyverse) #load tidyverse package
+library(ggplot2) #load ggplot package
+library(psych) #load psych package
+#options(scipen=999)
+
+#Calling in csv file to create a pruned tibble with kindergarten math word problem solving scores and other preschool and kindergarten measures of math, language & cognitive variables.
+wps_predictors <- read_csv("va_dataset.csv", show_col_types = FALSE) %>% 
+  select("VSWMCTR_wv1", "acc_wo_0_cong_wv1", "acc_wo_0_inco_wv1", "kbit_SS_wv1", "tem3_SS_wv1", "CPT_Omit_w1", "CPT_Commit_w1", "PRC_PanaCong_1", "PRC_PanaIncong_1", "CBQAttention1", "CBQInhibit1", "CBQImpulsivity1", "PhonologicalAwareness_wv1", "LWID_ss_wv2_eng_or_span", "CMA_WPS_wv3") %>% 
+  filter(CMA_WPS_wv3 == 0 | CMA_WPS_wv3 == 1 | CMA_WPS_wv3 == 2 | CMA_WPS_wv3 == 3 | CMA_WPS_wv3 == 4 | CMA_WPS_wv3 == 5 | CMA_WPS_wv3 == 6)  %>%  #remove rows with outcome variable not from 0-6
+  rename("VSWM_preK" = "VSWMCTR_wv1", "ChANT_att_preK" = "acc_wo_0_cong_wv1", "ChANT_inhib_preK" = "acc_wo_0_inco_wv1", "iq_preK" = "kbit_SS_wv1", "math_preK" = "tem3_SS_wv1", "CPT_att_preK" = "CPT_Omit_w1", "CPT_inhib_preK" = "CPT_Commit_w1", "ANS_cong_preK" = "PRC_PanaCong_1", "ANS_inco_preK" = "PRC_PanaIncong_1", "CBQ_att_preK" = "CBQAttention1", "CBQ_inhib_preK" = "CBQInhibit1", "CBQ_impul_preK" = "CBQImpulsivity1", "PA_preK" = "PhonologicalAwareness_wv1", "LWID_preK" = "LWID_ss_wv2_eng_or_span", "WPS_K" = "CMA_WPS_wv3") %>% #changing variable names to meaningful names
+  relocate(WPS_K, math_preK, PA_preK, LWID_preK, VSWM_preK, iq_preK, ChANT_att_preK, ChANT_inhib_preK, CBQ_att_preK, CBQ_inhib_preK, CBQ_impul_preK, CPT_att_preK, CPT_inhib_preK, ANS_cong_preK, ANS_inco_preK, ) %>% #reorder columns to make more sense
+  na.omit() #omit all NAs
+
+str(wps_predictors) #checking the structure of the tibble
+
+#write.csv(wps_predictors, "wps_predictors.csv") #write file with pruned tibble for easy call-in
+```
+
+## Variable distributions and Multicollinearity
+
+Before conducting a PCA, variables need to be checked for normality and multicollinearity.
+
+```{r}
+
+pca_tib <- wps_predictors[,2:15] #remove WPS column as it is the outcome of interest
+
+#install.packages("PerformanceAnalytics")
+library(PerformanceAnalytics) #for chart.Correlation
+chart.Correlation(pca_tib, histogram = TRUE, method = "pearson") #visualize variable distributions, correlations and homogeneity of variance
+
+```
+
+**Some variables are not normally distributed so they need to be removed before conducting PCA.**
+
+```{r}
+pca_data <- pca_tib %>% 
+  select(-VSWM_preK) %>% #very problematic
+  select(-ChANT_att_preK) %>% #very problematic
+  select(-CPT_inhib_preK) %>% #very problematic
+  select(-ChANT_inhib_preK) %>% #problematic but maybe not enough to warrant removal??
+  select(-CPT_att_preK) #problematic but maybe not enough to warrant removal??
+
+
+chart.Correlation(pca_data, histogram = TRUE, method = "pearson") #Recheck plots of variables
+
+cor.plot(pca_tib) #visualize correlation strength for multicollinearity
+
+```
+
+**The scores for the attention and inhibition sub-scales from the Child Behavior Questionnaire (CBQ) are highly correlated (r ~ 0.80) but not high enough to remove due to multicollinearity.**
+
+## Scaling variables
+
+Before conducting a PCA, variables are scaled so that their factor loadings are not affected by the different scales of the variables.
+
+```{r}
+scaled_pca_data <- pca_data %>% 
+  mutate_at(c(1:9), ~(scale(.) %>% as.vector))
+
+str(scaled_pca_data)
+psych::describe(scaled_pca_data) #descriptives to check if scaling worked
+
+```
+
+**All variables now have a mean of 0 and standard deviation of 1.** 
+
+## Round 1/Base PCA
+### Visualize components
+
+```{r}
+library(factoextra) #extract and visualize the output of multivariate data analyses, including 'PCA'
+
+#line below runs a simple PCA with a component for each variable. 
+#the most variance will be explained in component 1 and 2
+viz_pca <- prcomp(scaled_pca_data, center = TRUE,scale. = TRUE)
+
+
+#Graph of variables. Positive correlated variables point to the same side of the plot. Negative correlated variables point to opposite sides of the graph.
+
+fviz_pca_var(viz_pca,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE #Avoid overlapping text if possible 
+             )
+
+```
+
+**From the visualization, it looks like the following are loading together:**
+
+1. CBQ subscales
+
+2. ANS acuity scores
+
+3. Academic subtests
+
+### Bartlett's test
+
+```{r}
+cortest.bartlett(scaled_pca_data, 469)
+
+```
+
+**Since p<.05, the R-matrix is not an identity matrix and we can do PCA with the included predictors.**
+
+### Measure of Sampling Adequacy - Kaiser-Meyer-Olkin index
+
+The test measures sampling adequacy for each variable in the model and for the complete model. The Kaiser-Meyer-Olkin (KMO) index is a measure of the proportion of variance among variables that might be common variance. The higher the proportion, the more suited your data is to Factor Analysis. The recommended threshold for KMO is 0.5.
+
+```{r}
+
+KMO(scaled_pca_data) #Check that all are at least >0.5
+
+```
+
+**KMO values range from 0.61-0.82 with overall MSA = 0.69 which is acceptable for conducting a PCA.**
+
+### Base PCA
+
+The eigenvalues associated with each factor represent the variance explained by that particular linear component. R calls these SS loadings (sums of squared loadings), because they are the sum of the squared loadings. The number of SS loadings greater than 1 (Kaiser's criterion) determines the number of potential components.
+
+```{r}
+#run a base pca with as many components as possible - 9 variables
+
+pca_base <- principal(scaled_pca_data, nfactors = 9, rotate = "none")
+
+pca_base #results of base PCA
+```
+
+**Based on SS loadings (>1), we have 3 potential components.**
+
+The Scree plot shows the eigenvalues (y) against the factor number (x). Change in inflection of the plot indicates how many components should be estimated.
+
+```{r}
+#scree plot using eigen values stored in pca_1$values
+plot(pca_base$values, type = "b")
+```
+
+**Inflection is very slight but visible - 3 components shouls be estimated.***
+
+### Check for normally distributed residuals before conducting informed PCA
+
+```{r}
+pca_resid <- principal(scaled_pca_data, nfactors = 3, rotate = "none")
+pca_resid #results
+
+#residuals
+#require correlation matrix for final data
+corMatrix<-cor(scaled_pca_data)
+#corMatrix
+
+#next,create an object from the correlation matrix and the pca loading. Call it residuals. It will contain the factor residuals
+residuals<-factor.residuals(corMatrix, pca_resid$loadings)
+
+#call a histogram to check residuals
+hist(residuals) 
+
+```
+
+**Residuals are mostly normally distributed with a right tail, but that's okay.**
+
+## Informed PCA with oblique rotation
+
+Now that we have determined that the PCA should estimate 3 components, we choose an oblique rotation because our factors are assumed to be related and not independent.
+
+```{r}
+#Since factors should be related, use oblique technique (promax).
+pca_final <- principal(scaled_pca_data, nfactors = 3, rotate = "promax")
+pca_final #results. 
+
+#let's make the results easier to read. Include loadings over .3 (think of medium correlation) and sort them
+
+print.psych(pca_final, cut = 0.3, sort = TRUE)
+
+```
+
+### Plot out results from informed PCA
+
+```{r}
+
+plot(pca_final)
+
+#The far right on each box shows where the component's observations cluster compared to each other cluster
+#component 1 is black
+#component 2 is blue
+#component 3 is red
+
+#looking for separation among the components
+
+fa.diagram(pca_final)
+
+```
+
+**Separation among components looks good and the loadings of different variables on to factors also seems theoretically sound.**
+
+**The Most Important Task is Naming the Components!!!**
+
+**Component 1: Child Behavior Questionnaire Composite, with the all variables loading equally strongly (note that the direction of the loading of CBQ_impul_preK is opposite to other CBQ scales and this is expected)**
+
+**Component 2: Academic skill + IQ (Can be academic & cognitive ability), with math_preK and LWID_preK loading strongest**
+
+**Component 3: ANS Acuity, with equally stong loading of both congruent and incongruent trials**
+
+
+## Collect factor scores
+
+To be able to use the components from the PCA in the logistic regresion analysis, we need to add the factor scores to the tibble with the orginial data.
+
+```{r}
+#we need the pca scores
+pca_final_scores <- as.data.frame(pca_final$scores) #scores for each text on each factor. You can use these in subsequent analyses. Lot's of them though
+
+#rename columns
+pca_final_scores <- pca_final_scores %>% 
+  rename(CBQ_composite = RC1, Academic_Cognitive_skill = RC2, ANS_acuity = RC3)
+
+#combine this dataframe with earlier dataframe (wps_predictors)
+
+str(wps_predictors)
+
+final_data <- cbind(wps_predictors, pca_final_scores)
+str(final_data)
+
+#write.csv(pca_final_scores,"pca_scores_final_df.csv", row.names=FALSE)
+
+```
+
+# Logistic Regression Model
+
+For logistic regression, the outcome variable needs to be a factor with two levels. Since WPS is a continuous variable that needs to be converted into a binomial factor, I will use a median split to create a new outcome variable with levels high and low.
+
+```{r}
+#create a tibble with just the WPS score outcome and predictors (PCA components + predictors not included in PCA analysis)
+final_data <- final_data %>% 
+  select(WPS_K, CBQ_composite, Academic_Cognitive_skill, ANS_acuity, VSWM_preK, ChANT_att_preK, ChANT_inhib_preK) %>% 
+  na.omit()
+
+final_data <- final_data %>% 
+  mutate(WPS_mediansplit = case_when(WPS_K < 5 ~ "Low", WPS_K > 4 ~ "High"))
+
+final_data$WPS_mediansplit <- as.factor(final_data$WPS_mediansplit) #create a new factor variable based on the median split for WPS scores to be the outcome for the logistic regression
+
+str(final_data) #check tibble structure
+```
+
+Next, the groups based on the outcome must be balanced for logistic regression to be accurate.
+
+```{r}
+table(final_data$WPS_mediansplit) #check if groups are balanced
+
+final_data_2 <- final_data %>% 
+  group_by(WPS_mediansplit) %>% 
+  sample_n(205) %>% #equalize groups by selecting 205 observations per group
+  select(-WPS_K) #remove the original WPS scores from the tibble
+
+str(final_data_2)
+
+table(final_data_2$WPS_mediansplit) #confirm that groups are balanced
+
+```
+
+**IMPORTANT NOTE: When balancing groups, a random subset of 205 observations are taken from the low group. This means that each time the code is run, there might be minor variations in the means, sd, confusion matrix, kappa etc. I point this out so that later if the number that I have in my interpretations are not exactly the same, you know why.**
+
+**Typically, before proceeding with checks for multicollinearity in the data, all variables would be scaled to a mean of 0 and standard deviation of 1 to allow for easy comparison across variables with different scales. However, in my dataset, scaling led to a different result for the logistic regression model than with unscaled data, so the variables will not be scaled for this assignment.**
+
+```{r}
+psych::describe(final_data_2) #summarize the tibble to understand the means, standard deviations, minimum values and maximum values of all variables.
+```
+
+## Multicollinearity
+
+```{r}
+cor(final_data_2[, c(1:6)]) #checking correlations for multicollinearity among the predictors of interest
+```
+
+**No issues with multicollinearity as all correlations are <0.4.**
+
+## Check trends in the data
+
+```{r}
+#write.csv(scaled_final_data_2, "Scaled PCA LogReg data.csv") to check in Excel if the group-wise means really are that close to zero and so similar.
+
+summary <- final_data_2 %>% 
+  group_by(WPS_mediansplit) %>% 
+  summarise_at(1:6, funs(mean,sd)) #check the means for the low and high WPS groups on all predictors
+
+print(summary)
+```
+
+**Trends are (generally) as expected with higher WPS scores associated with higher scores for all predictors and lower WPS scores associated with lower scores for all predictors. This means that we expect the estimates from the logistic regression to all be negative. If an estimate is positive, it will indicate a suppression effect.**
+
+## Crossvalidation (10-fold CV) with Feature selection
+
+```{r}
+library(caret) #load caret package for cv
+
+str(final_data_2)
+
+set.seed(1234)
+
+# Set up repeated k-fold cross-validation
+train.control <- trainControl(method = "cv", number = 10)
+#method = cross validation, number = 10 (10-fold CV)
+
+#the 10-fold CV stepwise model for logistic regression with stepwise!
+logreg_10cv <- train(WPS_mediansplit ~ .,
+                 data = final_data_2,
+                 method="glmStepAIC", # Step wise AIC (estimator of prediction error) from maas package
+                 direction="backward",
+                 trControl = train.control,
+                 family = "binomial")
+
+#the model summary to examine coefficients for suppression effects and non-significant predictors
+summary(logreg_10cv)
+
+```
+
+**There is no evidence of suppression effect as the estimates are all negative. Negative estimates indicate that there is a decrease in math and sustained attention from the high WPS to the low WPS group, which is in line with the trends examined in the data.**
+
+**Based on the model, the PCA component academic and cognitive skill and sustained attention as measured by the Child-ANT at the beginning of pre-K are the important features in predicting whether a student will have high or low WPS scores in kindergarten.**
+
+## Get predicted and actual values from the regression model
+
+```{r}
+#create function to compute probabilities from estimates
+probabilities <- function(co_ef){
+  odds <- exp(co_ef)
+  prob <- odds/(1+odds)
+  return(prob)
+}
+
+#compute probabilities
+estimates <- c(-.5823,-1.8378) #combines estimates from model into a vector
+
+probabilities(estimates)
+
+#get predicted values
+predicted <- unname(logreg_10cv$finalModel$fitted.values) #change from a named number vector
+
+#add predicted values to tibble
+
+final_data_2$predicted.probabilities <- predicted
+
+final_data_2 <- final_data_2 %>% 
+  #assign 1 to high WPS, 2 to low WPS
+  mutate(actual = ifelse(WPS_mediansplit == "High", 1, 2)) %>% 
+  #assign 1 to .50 and less and 2 to anything else 
+  mutate(predicted = ifelse(predicted.probabilities < .50, 1, 2))
+
+#both need to be factors
+final_data_2$predicted <- as.factor(final_data_2$predicted)
+final_data_2$actual <- as.factor(final_data_2$actual)
+
+str(final_data_2)
+table(final_data_2$actual) #what are final numbers
+
+# create confusion matrix using CARET
+confusionMatrix(final_data_2$actual, final_data_2$predicted,
+                mode = "everything", #what you want to report in stats
+                positive="1") #positive here is High WPS score
+```
+
+**IMPORTANT NOTE: When balancing groups, a random subset of 205 observations are taken from the low group. This means that each time the code is run, there might be minor variations in the means, sd, confusion matrix, kappa etc.**
+
+**Based on the confusion matrix, we can conclude the following: Of 205 high WPS students, the model correctly predicted 132 as high WPS and 73 were incorrectly predicted as having low WPS. Of the 205 low WPS students, the model correctly predicted 125 students but 80 students were incorrectly predicted as being high WPS students. It seems that the model is better at predicting students with high WPS scores than students with low WPS scores.** 
+
+**The important metrics are: Kappa = 0.2537; Precision = 0.6439; Recall = 0.6226 and F1 = 0.63731. From these metrics and the confusion matrix, it is clear that this model is not doing an okay job of predicting WPS score classes based on academic and cogntive skill composite and sustained attention at the beginning of pre-K.**
+
+## Confusion Matrix in a Mosaic Plot
+
+```{r}
+
+#put the actual and predicted values into a table
+mosaic_table <- table(final_data_2$actual, final_data_2$predicted)
+mosaic_table #check on that table
+
+#simple mosaic plot
+mosaicplot(mosaic_table,
+           main = "Confusion matrix for logistic regression",
+           sub = "Accuracy of prediction",
+           xlab = "Predicted",
+           ylab = "Actual",
+           color = "skyblue2",
+           border = "chocolate")
+
+```
+
+**Using the mosaic plot, we can visualize the confusion matrix, which leads to similar conclusions that the model is not doing a good job of correctly predicting which WPS group a student belongs to based on early math skills and sustained attention.**
+
+# Discussion
+The research question was given measures of math, language and cognition for pre-K students entering pre-K with very low math scores, how well can we predict whether the student will have low or high word problem solving scores in kindergarten?
+The model was able to correctly predict students classification as high or low WPS scores more than 50% of the time, and based on Kappa (0.2439), the model has fair agreement between the predicted and actual values. However, this is not ideal as we would like Kappa to be closer to 0.80 to say that the model is doing a good job of predicting whether students have low or high WPS scores. A possible reason for why the model isn't performing well might be that we do not have a WPS score at the beginning of pre-K to include as a predictor; it is well established that scores from an earlier time point of the same measure are the strongest predictors of the later time point score. Another reason the model might not be performing well is that many observations had the median score (4) on the continuous WPS score that was used to create a binomial outcome for this analysis, suggesting that logistic regression with just two classes might not be the most appropriate way to analyse the data.
+
